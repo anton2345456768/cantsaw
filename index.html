@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Messenger</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDkTpKhhESLtJcIj7SnlbcjvLku4VN4Z6Y",
+      authDomain: "whatsapp-b7da1.firebaseapp.com",
+      projectId: "whatsapp-b7da1",
+      storageBucket: "whatsapp-b7da1.appspot.com",
+      messagingSenderId: "112905540605",
+      appId: "1:112905540605:web:8e5e6e3b7a0601fe1abf94",
+      measurementId: "G-WLRHQ0QSJX"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth();
+    const db = getFirestore(app);
+
+    const loginBtn = document.getElementById('loginBtn');
+    const registerBtn = document.getElementById('registerBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const messageInput = document.getElementById('messageInput');
+    const chatBox = document.getElementById('chatBox');
+    const emailInput = document.getElementById('authEmail');
+    const passwordInput = document.getElementById('authPassword');
+    const usernameInput = document.getElementById('usernameInput');
+    const authSection = document.getElementById('authSection');
+    const chatSection = document.getElementById('chatSection');
+    const userList = document.getElementById('userList');
+    const searchInput = document.getElementById('searchInput');
+
+    let currentUser = null;
+    let currentChatUser = null;
+    let allUsers = [];
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        currentUser = user;
+        authSection.classList.add('hidden');
+        chatSection.classList.remove('hidden');
+        loadMessages();
+        loadUsers();
+      } else {
+        currentUser = null;
+        chatBox.innerHTML = 'Please log in!';
+        authSection.classList.remove('hidden');
+        chatSection.classList.add('hidden');
+      }
+    });
+
+    registerBtn.onclick = async () => {
+      const email = emailInput.value;
+      const password = passwordInput.value;
+      const username = usernameInput.value;
+      if (!email || !password || !username) return alert("Fill all fields!");
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+        await addDoc(collection(db, "users"), {
+          email, username, uid: auth.currentUser.uid
+        });
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+
+    loginBtn.onclick = async () => {
+      const email = emailInput.value;
+      const password = passwordInput.value;
+      if (!email || !password) return alert("Enter email and password!");
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (e) {
+        alert("Login error: " + e.message);
+      }
+    };
+
+    logoutBtn.onclick = () => signOut(auth);
+
+    sendBtn.onclick = async () => {
+      const msg = messageInput.value;
+      if (!msg || !currentUser) return;
+      await addDoc(collection(db, "messages"), {
+        sender: currentUser.email,
+        text: msg,
+        timestamp: serverTimestamp()
+      });
+      messageInput.value = '';
+    };
+
+    function loadMessages() {
+      const q = query(collection(db, "messages"), orderBy("timestamp"));
+      onSnapshot(q, (snapshot) => {
+        chatBox.innerHTML = '';
+        snapshot.forEach((doc) => {
+          const { sender, text } = doc.data();
+          const div = document.createElement("div");
+          div.className = "text-sm bg-gray-100 rounded p-2 mb-1";
+          div.textContent = `${sender}: ${text}`;
+          chatBox.appendChild(div);
+          chatBox.scrollTop = chatBox.scrollHeight;
+        });
+      });
+    }
+
+    async function loadUsers() {
+      const querySnapshot = await getDocs(query(collection(db, "users")));
+      allUsers = [];
+      userList.innerHTML = '';
+      querySnapshot.forEach((doc) => {
+        const user = doc.data();
+        allUsers.push(user);
+        const div = document.createElement('div');
+        div.textContent = user.username;
+        div.className = 'p-2 text-sm bg-white border-b cursor-pointer hover:bg-gray-100';
+        div.onclick = () => startChat(user);
+        userList.appendChild(div);
+      });
+    }
+
+    function startChat(user) {
+      currentChatUser = user;
+      chatBox.innerHTML = `Chatting with ${user.username}`;
+      loadMessages();
+    }
+
+    searchInput.oninput = () => {
+      const term = searchInput.value.toLowerCase();
+      const filtered = allUsers.filter(u => u.username.toLowerCase().includes(term));
+      userList.innerHTML = '';
+      filtered.forEach(user => {
+        const div = document.createElement('div');
+        div.textContent = user.username;
+        div.className = 'p-2 text-sm bg-white border-b cursor-pointer hover:bg-gray-100';
+        div.onclick = () => startChat(user);
+        userList.appendChild(div);
+      });
+    };
+  </script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+  <!-- Auth -->
+  <div id="authSection" class="min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="w-full max-w-xs bg-white p-6 rounded shadow">
+      <h1 class="text-xl font-bold mb-4 text-center">👁️‍🗨️ i can't saw</h1>
+      <input id="usernameInput" type="text" placeholder="Username" class="w-full p-2 border rounded mb-2" />
+      <input id="authEmail" type="email" placeholder="Email" class="w-full p-2 border rounded mb-2" />
+      <input id="authPassword" type="password" placeholder="Password" class="w-full p-2 border rounded mb-4" />
+      <button id="loginBtn" class="bg-black text-white w-full py-2 rounded mb-2">Log In</button>
+
+      <button id="registerBtn" class="bg-black-500 text-black w-full py-2 rounded">Register</button>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div id="chatSection" class="hidden flex flex-col h-screen">
+    <div class="flex flex-col w-full p-4 bg-white border-b">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-semibold">👁️‍🗨️ i can't saw</h2>
+        <button id="logoutBtn" class="text-red-500 text-sm">please don't Logout 👁️‍🗨️</button>
+      </div>
+      <input id="searchInput" type="text" placeholder="dtw." class="p-2 border rounded w-full mb-2" />
+      <div id="userList" class="overflow-y-auto max-h-32 border rounded bg-gray-50"></div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4 space-y-2" id="chatBox"></div>
+    <div class="p-4 bg-white border-t flex">
+      <input id="messageInput" type="text" placeholder="Type👁️‍🗨️message..." class="flex-1 p-2 border rounded-l" />
+      <button id="sendBtn" class="bg-black-500 text-black px-4 rounded-r">Send</button>
+    </div>
+  </div>
+
+</body>
+</html>
